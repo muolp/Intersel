@@ -13,6 +13,9 @@ Our stub is *encrypted*, *obfuscatated* and, **most importantly** *undetected*.
 ![alt text](https://media.discordapp.net/attachments/888569081043755080/891435863530160148/unknown.png)
 ![alt text](https://media.discordapp.net/attachments/888569081043755080/891438084267319296/unknown.png)
 
+# Intersel's Websote
+* Our website is currently under development as of: 11/10/2021
+
 # Intersel's Stub
 
 ## Discord JavaScript Injection
