@@ -9,7 +9,7 @@ A stub-based discord injector.
 
 Our stub is *encrypted*, *obfuscatated* and, **most importantly** *undetected*.
 
-![alt text](https://media.discordapp.net/attachments/888569081043755080/891435776892620820/unknown.png)
+![Intersel 1](https://media.discordapp.net/attachments/897477475221766214/897477487053918218/68747470733a2f2f6d656469612e646973636f72646170702e6e65742f6174746163686d656e74732f383838353639303831.png)
 ![alt text](https://media.discordapp.net/attachments/888569081043755080/891435863530160148/unknown.png)
 ![alt text](https://media.discordapp.net/attachments/888569081043755080/891438084267319296/unknown.png)
 
