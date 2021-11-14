@@ -5,6 +5,9 @@ A stub-based discord injector.
 
 *Intersel is a  stub-based JavaScript injection tool for Discord*
 
+*(Intersel is a builder for PirateStealer, developed by me and Stanley)*
+
+
 **What do we have to offer?**
 
 Our stub is *encrypted*, *obfuscatated* and, **most importantly** *undetected*.
