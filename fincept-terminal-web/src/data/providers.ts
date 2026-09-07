@@ -20,7 +20,7 @@ export const YAHOO_MAP: Record<string, string> = {
   CAT: 'CAT', BA: 'BA', DIS: 'DIS', SPY: 'SPY', QQQ: 'QQQ',
   BTC: 'BTC-USD', ETH: 'ETH-USD', SOL: 'SOL-USD',
   EURUSD: 'EURUSD=X', GBPUSD: 'GBPUSD=X', USDJPY: 'USDJPY=X',
-  CL: 'CL=F', GC: 'GC=F', SI: 'SI=F', NG: 'NG=F',
+  XAUUSD: 'XAUUSD=X', CL: 'CL=F', GC: 'GC=F', SI: 'SI=F', NG: 'NG=F',
   US10Y: '^TNX',
 }
 

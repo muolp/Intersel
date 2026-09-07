@@ -3,6 +3,7 @@
 import { engine, Quote } from '../data/market'
 import { SYMBOL_MAP } from '../data/symbols'
 import type { Store, AlgoSettings, AlgoDecision } from './store'
+import { computeAccount, requiredMargin } from './account'
 
 function sma(vals: number[], n: number): number {
   if (vals.length < n) return NaN
@@ -86,60 +87,84 @@ export function universeSymbols(settings: AlgoSettings, store: Store): string[] 
 
 let did = 1
 // Run one autonomous cycle. Returns the decisions taken (already executed via store.trade).
+// Margin-aware: sizes by equity, respects free margin under the account leverage,
+// and can open SHORT positions on strongly bearish signals (MetaTrader-style).
 export function runAlgoCycle(store: Store): AlgoDecision[] {
   const s = store.algo
+  const lev = store.leverage
   const thr = AGGRESSION[s.aggression]
   const syms = universeSymbols(s, store)
-  const positions = () => store.positions
-  // portfolio equity snapshot for sizing
-  const equityNow = () => store.positions.reduce((acc, p) => acc + (engine.get(p.symbol)?.price ?? p.avg) * p.qty, 0)
+  const price = (sym: string) => engine.get(sym)?.price ?? 0
   const decisions: AlgoDecision[] = []
 
-  // rank candidates by signal strength
+  const acct = computeAccount(store.positions, store.cash, lev, price)
+  const equity = acct.equity
+  let freeLeft = acct.freeMargin - equity * (s.cashReservePct / 100)  // keep a margin buffer
+  const localQty: Record<string, number> = {}
+  for (const p of store.positions) localQty[p.symbol] = p.qty
+
   const signals = syms.map(sym => engine.get(sym)).filter((q): q is Quote => !!q).map(computeSignal)
   const buys = signals.filter(x => x.score >= thr.buy).sort((a, b) => b.score - a.score)
-  const sells = signals.filter(x => x.score <= thr.sell)
+  const sells = signals.filter(x => x.score <= thr.sell).sort((a, b) => a.score - b.score)
 
   const time = new Date().toLocaleTimeString('en-US', { hour12: false })
   const isTradable = (sym: string) => {
     const cls = SYMBOL_MAP[sym]?.cls
-    return cls === 'Equity' || cls === 'ETF' || cls === 'Crypto'  // avoid indices/FX/rates in autopilot
+    return cls === 'Equity' || cls === 'ETF' || cls === 'Crypto' || cls === 'Commodity'
   }
+  const trancheNotional = equity * (s.riskPerTradePct / 100)
+  const maxPosNotional = equity * (s.maxPositionPct / 100)
+  const sizeQty = (cls: string, notional: number, px: number) =>
+    (cls === 'Crypto' || cls === 'Commodity') ? +(notional / px).toFixed(4) : Math.floor(notional / px)
 
-  // SELLS first (free up cash and cut losers/overbought)
+  // SELLS: close/reduce longs, or open shorts on strong bearish signals
   for (const sig of sells) {
     if (decisions.length >= s.maxTradesPerCycle) break
-    const pos = positions().find(p => p.symbol === sig.symbol)
-    if (!pos || pos.qty <= 0) continue
     const q = engine.get(sig.symbol)!
-    const sellQty = sig.score < thr.sell - 0.2 ? pos.qty : Math.max(1, Math.floor(pos.qty * 0.5))
-    if (sellQty <= 0) continue
-    store.trade(sig.symbol, 'SELL', sellQty, q.bid, 'ai')
-    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'SELL', qty: sellQty, price: q.bid, score: sig.score, reason: whyText(sig, 'SELL') })
+    const held = localQty[sig.symbol] ?? 0
+    if (held > 0) {
+      // reduce or fully exit the long
+      const sellQty = sig.score < thr.sell - 0.2 ? held : Math.max(q.cls === 'Crypto' || q.cls === 'Commodity' ? +(held * 0.5).toFixed(4) : Math.floor(held * 0.5), 0)
+      if (sellQty <= 0) continue
+      store.trade(sig.symbol, 'SELL', sellQty, q.bid, 'ai')
+      freeLeft += requiredMargin(sellQty, q.price, lev)
+      localQty[sig.symbol] = held - sellQty
+      decisions.push({ id: did++, time, symbol: sig.symbol, side: 'SELL', qty: sellQty, price: q.bid, score: sig.score, reason: whyText(sig, 'SELL') })
+    } else if (sig.score <= thr.sell - 0.05 && isTradable(sig.symbol)) {
+      // open / extend a short
+      const curShortNotional = Math.abs(Math.min(0, held)) * q.price
+      const room = maxPosNotional - curShortNotional
+      if (room <= 0) continue
+      const notional = Math.min(trancheNotional, room)
+      const qty = sizeQty(q.cls, notional, q.bid)
+      const margin = requiredMargin(qty, q.bid, lev)
+      if (qty <= 0 || qty * q.bid < 50 || margin > freeLeft) continue
+      store.trade(sig.symbol, 'SELL', qty, q.bid, 'ai')
+      freeLeft -= margin
+      localQty[sig.symbol] = held - qty
+      decisions.push({ id: did++, time, symbol: sig.symbol, side: 'SELL', qty, price: q.bid, score: sig.score, reason: whyText(sig, 'SELL') })
+    }
   }
 
-  // BUYS with risk budget
+  // BUYS: open / extend longs within the margin budget
   for (const sig of buys) {
     if (decisions.length >= s.maxTradesPerCycle) break
     if (!isTradable(sig.symbol)) continue
     const q = engine.get(sig.symbol)!
-    const totalVal = equityNow() + store.cash
-    const eqVal = equityNow()
-    const investable = (eqVal + store.cash)
-    const cashFloor = totalVal * (s.cashReservePct / 100)
-    const available = store.cash - cashFloor
-    if (available <= totalVal * 0.01) break  // out of budget
-    const pos = positions().find(p => p.symbol === sig.symbol)
-    const curPosVal = pos ? q.price * pos.qty : 0
-    const maxPosVal = investable * (s.maxPositionPct / 100)
-    if (curPosVal >= maxPosVal) continue  // already at cap
-    const tranche = Math.min(available, totalVal * (s.riskPerTradePct / 100), maxPosVal - curPosVal)
-    const qty = Math.floor(tranche / q.ask)
-    const fracQty = q.cls === 'Crypto' ? +(tranche / q.ask).toFixed(4) : qty
-    if (fracQty <= 0) continue
-    if (fracQty * q.ask < 50) continue  // skip dust
-    store.trade(sig.symbol, 'BUY', fracQty, q.ask, 'ai')
-    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'BUY', qty: fracQty, price: q.ask, score: sig.score, reason: whyText(sig, 'BUY') })
+    const held = localQty[sig.symbol] ?? 0
+    if (held < 0) continue  // don't fight an open short in the same cycle
+    const curLongNotional = Math.max(0, held) * q.price
+    const room = maxPosNotional - curLongNotional
+    if (room <= 0) continue
+    const notional = Math.min(trancheNotional, room)
+    const qty = sizeQty(q.cls, notional, q.ask)
+    const margin = requiredMargin(qty, q.ask, lev)
+    if (qty <= 0 || qty * q.ask < 50) continue
+    if (margin > freeLeft) continue
+    store.trade(sig.symbol, 'BUY', qty, q.ask, 'ai')
+    freeLeft -= margin
+    localQty[sig.symbol] = held + qty
+    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'BUY', qty, price: q.ask, score: sig.score, reason: whyText(sig, 'BUY') })
   }
 
   return decisions

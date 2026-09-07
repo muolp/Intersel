@@ -59,8 +59,9 @@ export const SYMBOLS: SymbolDef[] = [
   { symbol: 'GBPUSD', name: 'Sterling / US Dollar', cls: 'FX', base: 1.2731, vol: 0.006, drift: 0.0, currency: 'USD' },
   { symbol: 'USDJPY', name: 'US Dollar / Yen', cls: 'FX', base: 157.3, vol: 0.006, drift: 0.02, currency: 'JPY' },
   // Commodities
+  { symbol: 'XAUUSD', name: 'Gold Spot / USD', cls: 'Commodity', base: 2398.0, vol: 0.011, drift: 0.10, currency: 'USD' },
   { symbol: 'CL', name: 'WTI Crude Oil', cls: 'Commodity', base: 78.4, vol: 0.02, drift: 0.02, currency: 'USD' },
-  { symbol: 'GC', name: 'Gold Spot', cls: 'Commodity', base: 2398.0, vol: 0.011, drift: 0.10, currency: 'USD' },
+  { symbol: 'GC', name: 'Gold Futures', cls: 'Commodity', base: 2398.0, vol: 0.011, drift: 0.10, currency: 'USD' },
   { symbol: 'SI', name: 'Silver Spot', cls: 'Commodity', base: 29.1, vol: 0.02, drift: 0.09, currency: 'USD' },
   { symbol: 'NG', name: 'Natural Gas', cls: 'Commodity', base: 2.31, vol: 0.035, drift: -0.05, currency: 'USD' },
   // Rates

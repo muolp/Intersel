@@ -2,6 +2,7 @@ import { engine, fmtNum, signStr } from '../data/market'
 import { annualReturn, annualVol, sharpe, maxDrawdown } from './quant'
 import { SYMBOL_MAP, SYMBOLS } from '../data/symbols'
 import { Store } from './store'
+import { computeAccount } from './account'
 
 // A lightweight rule-based "research analyst" that reasons over the live mock data.
 export function respond(input: string, store: Store): string {
@@ -20,18 +21,18 @@ export function respond(input: string, store: Store): string {
 All orders are simulated (paper) — not investment advice.`
   }
 
-  if (/portfolio|my (positions|holdings|book)|how am i|p&l|pnl/i.test(q)) {
-    const rows = store.positions.map(p => { const qt = engine.get(p.symbol)!; return { p, qt, mkt: qt.price * p.qty, cost: p.avg * p.qty } })
-    const equity = rows.reduce((s, r) => s + r.mkt, 0)
-    const cost = rows.reduce((s, r) => s + r.cost, 0)
-    const pnl = equity - cost
-    const day = rows.reduce((s, r) => s + r.qt.change * r.p.qty, 0)
-    const best = rows.slice().sort((a, b) => (b.mkt - b.cost) - (a.mkt - a.cost))[0]
-    const worst = rows.slice().sort((a, b) => (a.mkt - a.cost) - (b.mkt - b.cost))[0]
-    return `Portfolio value $${fmtNum(equity + store.cash, 0)} (equity $${fmtNum(equity, 0)}, cash $${fmtNum(store.cash, 0)}).
-Open P&L ${signStr(pnl, 0)} (${signStr((pnl / cost) * 100, 1)}%), day P&L ${signStr(day, 0)}.
-Across ${rows.length} positions — best: ${best.p.symbol} (${signStr(best.mkt - best.cost, 0)}), worst: ${worst.p.symbol} (${signStr(worst.mkt - worst.cost, 0)}).
-${pnl >= 0 ? 'Book is in the green; consider trimming winners into strength.' : 'Book is under water; review position sizing and stops.'}`
+  if (/portfolio|my (positions|holdings|book)|how am i|p&l|pnl|margin|equity/i.test(q)) {
+    const acct = computeAccount(store.positions, store.cash, store.leverage, s => engine.get(s)?.price ?? 0)
+    if (!store.positions.length) return `Flat — no open positions. Balance $${fmtNum(acct.balance, 0)}, free margin $${fmtNum(acct.freeMargin, 0)} at 1:${store.leverage}. Ask me to "buy 10 AAPL" / "short 5 XAUUSD", or "start AI trading".`
+    const rows = store.positions.map(p => { const qt = engine.get(p.symbol)!; return { p, qt, floating: (qt.price - p.avg) * p.qty } })
+    const best = rows.slice().sort((a, b) => b.floating - a.floating)[0]
+    const worst = rows.slice().sort((a, b) => a.floating - b.floating)[0]
+    const longs = rows.filter(r => r.p.qty > 0).length, shorts = rows.filter(r => r.p.qty < 0).length
+    const ml = acct.marginLevel === Infinity ? '—' : fmtNum(acct.marginLevel, 0) + '%'
+    return `Equity $${fmtNum(acct.equity, 0)} (balance $${fmtNum(acct.balance, 0)}, floating ${signStr(acct.floating, 0)}) at 1:${store.leverage}.
+Used margin $${fmtNum(acct.usedMargin, 0)}, free margin $${fmtNum(acct.freeMargin, 0)}, margin level ${ml}.
+${rows.length} positions (${longs} long / ${shorts} short) — best: ${best.p.symbol} ${signStr(best.floating, 0)}, worst: ${worst.p.symbol} ${signStr(worst.floating, 0)}.
+${acct.floating >= 0 ? 'Book is in the green.' : 'Book is under water — mind the margin level.'}`
   }
 
   if (/top (movers|gainers|losers)|biggest (movers|gainers|losers)|what.*moving/i.test(q)) {

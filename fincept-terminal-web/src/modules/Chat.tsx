@@ -4,30 +4,48 @@ import { Panel } from '../components/Panel'
 import { respond } from '../lib/assistant'
 import { parseTradeCommand, runAlgoCycle } from '../lib/trader'
 import { engine, fmtNum } from '../data/market'
+import { computeAccount, marginForOrder } from '../lib/account'
 
 interface Msg { who: 'user' | 'ai'; text: string }
-const SUGGESTS = ['Buy 10 AAPL', 'Sell all TSLA', 'Analyze NVDA', 'Start AI trading', 'Rebalance my book', 'How is my portfolio doing?']
+const SUGGESTS = ['Buy 10 AAPL', 'Short 5 XAUUSD', 'Sell all TSLA', 'Start AI trading', 'Rebalance my book', 'How is my portfolio doing?']
 
-// Execute a natural-language trade against the paper account. Returns a reply.
+// Execute a natural-language trade against the margin paper account. Returns a reply.
 function doTrade(input: string, store: Ctx['store']): string | null {
   const t = parseTradeCommand(input)
   if (!t) return null
   const q = engine.get(t.symbol)
   if (!q) return `I don't have data for ${t.symbol}.`
+  const lev = store.leverage
+  const acct = computeAccount(store.positions, store.cash, lev, s => engine.get(s)?.price ?? 0)
   const pos = store.positions.find(p => p.symbol === t.symbol)
+  const held = pos?.qty ?? 0
+
   if (t.side === 'SELL') {
-    const qty = t.qty === 'all' ? (pos?.qty ?? 0) : t.qty
-    if (!pos || qty <= 0) return `You have no ${t.symbol} position to sell.`
-    if (qty > pos.qty + 1e-9) return `You only hold ${fmtNum(pos.qty, 4)} ${t.symbol}. Try "sell all ${t.symbol}".`
-    store.trade(t.symbol, 'SELL', qty, q.bid, 'ai')
-    return `✓ Sold ${fmtNum(qty, qty % 1 ? 4 : 0)} ${t.symbol} @ $${fmtNum(q.bid)} — proceeds $${fmtNum(qty * q.bid, 0)}. (paper)`
+    // "sell all" closes a long, or (if flat/short) is treated as a request to specify size
+    if (t.qty === 'all') {
+      if (held > 0) { store.trade(t.symbol, 'SELL', held, q.bid, 'ai'); return `✓ Closed LONG ${fmtNum(held, held % 1 ? 4 : 0)} ${t.symbol} @ $${fmtNum(q.bid)}. (paper)` }
+      return `You have no long ${t.symbol} to close. To open a short, say e.g. "short 10 ${t.symbol}".`
+    }
+    const qty = t.qty
+    const px = q.bid
+    const need = marginForOrder(held, 'SELL', qty, px, lev)
+    if (need > acct.freeMargin + 1e-6) return `✗ Not enough free margin to short ${qty} ${t.symbol}: needs $${fmtNum(need, 0)}, free $${fmtNum(acct.freeMargin, 0)}. Raise leverage (now 1:${lev}) or reduce size.`
+    store.trade(t.symbol, 'SELL', qty, px, 'ai')
+    const verb = held > 0 ? 'Reduced/closed long' : 'Opened SHORT'
+    return `✓ ${verb} — SELL ${fmtNum(qty, qty % 1 ? 4 : 0)} ${t.symbol} @ $${fmtNum(px)} · margin $${fmtNum(need, 0)} @ 1:${lev}. (paper)`
   }
-  const qty = t.qty === 'all' ? Math.floor((store.cash * 0.95) / q.ask) : t.qty
-  if (qty <= 0) return `Quantity must be positive.`
-  const cost = qty * q.ask
-  if (cost > store.cash) return `Insufficient cash: order needs $${fmtNum(cost, 0)} but you have $${fmtNum(store.cash, 0)}.`
-  store.trade(t.symbol, 'BUY', qty, q.ask, 'ai')
-  return `✓ Bought ${fmtNum(qty, qty % 1 ? 4 : 0)} ${t.symbol} @ $${fmtNum(q.ask)} — cost $${fmtNum(cost, 0)}. (paper)`
+
+  // BUY / LONG
+  const px = q.ask
+  const qty = t.qty === 'all'
+    ? ((q.cls === 'Crypto' || q.cls === 'Commodity') ? +((acct.freeMargin * lev * 0.95) / px).toFixed(4) : Math.floor((acct.freeMargin * lev * 0.95) / px))
+    : t.qty
+  if (qty <= 0) return `Volume must be positive.`
+  const need = marginForOrder(held, 'BUY', qty, px, lev)
+  if (need > acct.freeMargin + 1e-6) return `✗ Not enough free margin to buy ${qty} ${t.symbol}: needs $${fmtNum(need, 0)}, free $${fmtNum(acct.freeMargin, 0)}. Raise leverage (now 1:${lev}) or reduce size.`
+  store.trade(t.symbol, 'BUY', qty, px, 'ai')
+  const verb = held < 0 ? 'Reduced/closed short' : 'Opened LONG'
+  return `✓ ${verb} — BUY ${fmtNum(qty, qty % 1 ? 4 : 0)} ${t.symbol} @ $${fmtNum(px)} · notional $${fmtNum(qty * px, 0)}, margin $${fmtNum(need, 0)} @ 1:${lev}. (paper)`
 }
 
 function doControl(input: string, store: Ctx['store']): string | null {

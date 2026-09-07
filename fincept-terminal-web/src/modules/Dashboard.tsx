@@ -6,6 +6,7 @@ import { useMarket } from '../lib/hooks'
 import { fmtPrice, fmtNum, signStr, signCls, fmtBig, Quote } from '../data/market'
 import { generateNews } from '../data/news'
 import { SYMBOL_MAP } from '../data/symbols'
+import { computeAccount } from '../lib/account'
 
 const INDEX_SET = ['SPX', 'NDX', 'DJI', 'RUT', 'VIX', 'DAX']
 
@@ -33,10 +34,7 @@ export function Dashboard({ ctx }: { ctx: Ctx }) {
   const losers = [...movers].sort((a, b) => a.changePct - b.changePct).slice(0, 6)
   const st = ctx.store
 
-  const equity = st.positions.reduce((s, p) => s + (eng.get(p.symbol)?.price ?? p.avg) * p.qty, 0)
-  const totalVal = equity + st.cash
-  const cost = st.positions.reduce((s, p) => s + p.avg * p.qty, 0)
-  const pnl = equity - cost
+  const acct = computeAccount(st.positions, st.cash, st.leverage, s => eng.get(s)?.price ?? 0)
 
   return (
     <div className="grid" style={{ gridTemplateColumns: '1.4fr 1fr', gridAutoRows: 'min-content' }}>
@@ -54,11 +52,11 @@ export function Dashboard({ ctx }: { ctx: Ctx }) {
         </div>
       </Panel>
 
-      <Panel title="Portfolio Snapshot" sub="paper" right={<span className="clickable" onClick={() => ctx.go('portfolio')} style={{ cursor: 'pointer', color: 'var(--cyan)' }}>OPEN ▸</span>}>
+      <Panel title="Portfolio Snapshot" sub={`paper · 1:${st.leverage}`} right={<span className="clickable" onClick={() => ctx.go('portfolio')} style={{ cursor: 'pointer', color: 'var(--cyan)' }}>OPEN ▸</span>}>
         <div className="stats" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
-          <div className="stat"><div className="k">Total Value</div><div className="v">${fmtNum(totalVal)}</div></div>
-          <div className="stat"><div className="k">Cash</div><div className="v">${fmtBig(st.cash)}</div></div>
-          <div className="stat"><div className="k">Open P&amp;L</div><div className={'v ' + signCls(pnl)}>{signStr(pnl)}</div></div>
+          <div className="stat"><div className="k">Equity</div><div className="v">${fmtNum(acct.equity)}</div></div>
+          <div className="stat"><div className="k">Free Margin</div><div className="v">${fmtBig(acct.freeMargin)}</div></div>
+          <div className="stat"><div className="k">Floating P&amp;L</div><div className={'v ' + signCls(acct.floating)}>{signStr(acct.floating)}</div></div>
           <div className="stat"><div className="k">Positions</div><div className="v">{st.positions.length}</div></div>
         </div>
       </Panel>

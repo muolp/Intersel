@@ -27,8 +27,10 @@ runs fully offline with zero API keys.
 - **Economics** — FRED-style macro series browser and the US Treasury yield curve.
 - **Analytics** — portfolio risk (annualized return, volatility, Sharpe, max
   drawdown, historical VaR) and a two-stage DCF valuation calculator.
-- **Portfolio + Order Ticket** — paper-trading engine with market/limit orders,
-  live P&L, equity curve and a fills blotter that tags each fill YOU vs AI (persisted).
+- **Portfolio + Order Ticket** — a MetaTrader-style **margin account**: balance,
+  equity, floating P&L, used/free margin and margin level, with selectable
+  **leverage (1:1 – 1:500)** and **long or short** positions. Market/limit orders,
+  an equity curve, and a fills blotter tagging each fill YOU vs AI (persisted).
 - **AI Auto-Trader (ALGO)** — an autonomous paper-trading agent. It scores every
   instrument from SMA(20/50) trend, 10-day momentum and RSI(14), then trades your
   paper book within your risk limits (risk-per-trade, max position, cash reserve,

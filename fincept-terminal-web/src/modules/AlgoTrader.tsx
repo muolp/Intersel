@@ -6,6 +6,7 @@ import { fmtNum, signStr, signCls, fmtBig } from '../data/market'
 import { computeSignal, universeSymbols, runAlgoCycle, AGGRESSION } from '../lib/trader'
 import { engine } from '../data/market'
 import { AlgoSettings } from '../lib/store'
+import { computeAccount } from '../lib/account'
 
 function Bar({ score }: { score: number }) {
   const pct = Math.abs(score) * 50
@@ -28,8 +29,7 @@ export function AlgoTrader({ ctx }: { ctx: Ctx }) {
     return syms.map(s => eng.get(s)).filter(Boolean).map(q => computeSignal(q!)).sort((x, y) => y.score - x.score)
   }, [a.universe, eng, st.positions, st.watchlist])
 
-  const equity = st.positions.reduce((s, p) => s + (eng.get(p.symbol)?.price ?? p.avg) * p.qty, 0)
-  const totalVal = equity + st.cash
+  const acct = computeAccount(st.positions, st.cash, st.leverage, s => eng.get(s)?.price ?? 0)
   const aiTrades = st.trades.filter(t => t.by === 'ai')
 
   const set = (patch: Partial<AlgoSettings>) => st.setAlgo(patch)
@@ -105,9 +105,10 @@ export function AlgoTrader({ ctx }: { ctx: Ctx }) {
 
       <Panel title="AI Activity" sub={`${aiTrades.length} AI fills · entry vs live price · why`} style={{ gridColumn: '1 / 3' }}
         right={<button className="btn" onClick={() => st.clearAlgoLog()}>Clear log</button>}>
-        <div className="stats mb" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-          <div className="stat"><div className="k">Book Value</div><div className="v">${fmtBig(totalVal)}</div></div>
-          <div className="stat"><div className="k">Cash</div><div className="v">${fmtBig(st.cash)}</div></div>
+        <div className="stats mb" style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>
+          <div className="stat"><div className="k">Equity</div><div className="v">${fmtBig(acct.equity)}</div></div>
+          <div className="stat"><div className="k">Floating P&amp;L</div><div className={'v ' + signCls(acct.floating)}>{signStr(acct.floating, 0)}</div></div>
+          <div className="stat"><div className="k">Free Margin</div><div className="v">${fmtBig(acct.freeMargin)}</div></div>
           <div className="stat"><div className="k">Open Positions</div><div className="v">{st.positions.length}</div></div>
           <div className="stat"><div className="k">AI Trades</div><div className="v">{aiTrades.length}</div></div>
         </div>
