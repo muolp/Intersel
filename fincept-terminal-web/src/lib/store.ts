@@ -15,10 +15,13 @@ export interface AlgoSettings {
 }
 export interface AlgoDecision { id: number; time: string; symbol: string; side: 'BUY' | 'SELL'; qty: number; price: number; score: number; reason: string }
 
+export interface FeedSettings { provider: 'yahoo' | 'finnhub'; apiKey: string }
+
 const LS = 'fincept-terminal-state'
 interface Persisted {
   watchlist: string[]; positions: Position[]; cash: number; trades: Trade[]
   algo: AlgoSettings; algoLog: AlgoDecision[]
+  feed: FeedSettings
 }
 
 const DEFAULT_ALGO: AlgoSettings = {
@@ -39,6 +42,7 @@ const DEFAULT: Persisted = {
   trades: [],
   algo: DEFAULT_ALGO,
   algoLog: [],
+  feed: { provider: 'yahoo', apiKey: '' },
 }
 
 function load(): Persisted {
@@ -46,7 +50,7 @@ function load(): Persisted {
     const raw = localStorage.getItem(LS)
     if (raw) {
       const p = JSON.parse(raw)
-      return { ...DEFAULT, ...p, algo: { ...DEFAULT_ALGO, ...(p.algo ?? {}) }, algoLog: p.algoLog ?? [] }
+      return { ...DEFAULT, ...p, algo: { ...DEFAULT_ALGO, ...(p.algo ?? {}) }, algoLog: p.algoLog ?? [], feed: { provider: 'yahoo', apiKey: '', ...(p.feed ?? {}) } }
     }
   } catch { /* ignore */ }
   return DEFAULT
@@ -106,9 +110,10 @@ export function useStore() {
     setState(p => { const n = { ...p, algoLog: [...decisions, ...p.algoLog].slice(0, 80) }; save(n); return n })
   }, [])
   const clearAlgoLog = useCallback(() => setState(p => { const n = { ...p, algoLog: [] }; save(n); return n }), [])
+  const setFeed = useCallback((patch: Partial<FeedSettings>) => setState(p => { const n = { ...p, feed: { ...p.feed, ...patch } }; save(n); return n }), [])
 
   const reset = useCallback(() => persist(DEFAULT), [persist])
 
-  return { ...state, addWatch, removeWatch, toggleWatch, trade, setAlgo, logAlgo, clearAlgoLog, reset }
+  return { ...state, addWatch, removeWatch, toggleWatch, trade, setAlgo, logAlgo, clearAlgoLog, setFeed, reset }
 }
 export type Store = ReturnType<typeof useStore>

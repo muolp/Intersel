@@ -12,5 +12,6 @@ export const NAV: NavItem[] = [
   { id: 'trade', label: 'Order Ticket', icon: '⇅', group: 'Trading', cmd: 'BUY' },
   { id: 'algo', label: 'AI Auto-Trader', icon: '⚙', group: 'Intelligence', cmd: 'ALGO' },
   { id: 'chat', label: 'AI Research', icon: '✦', group: 'Intelligence', cmd: 'AI' },
+  { id: 'data', label: 'Data Feed', icon: '⚡', group: 'System', cmd: 'DATA' },
 ]
-export const GROUPS = ['Home', 'Markets', 'Research', 'Trading', 'Intelligence']
+export const GROUPS = ['Home', 'Markets', 'Research', 'Trading', 'Intelligence', 'System']

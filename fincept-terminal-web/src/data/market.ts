@@ -93,12 +93,15 @@ export interface LiveStatus {
   simCount: number
   lastRefresh: number | null
   error: string | null
+  provider: 'yahoo' | 'finnhub'
 }
 
 export class MarketEngine {
   quotes: Record<string, Quote> = {}
   source: Record<string, 'sim' | 'live'> = {}
   mode: DataMode = 'sim'
+  provider: 'yahoo' | 'finnhub' = 'yahoo'
+  apiKey = ''
   connecting = false
   lastRefresh: number | null = null
   lastError: string | null = null
@@ -155,7 +158,16 @@ export class MarketEngine {
       liveCount: vals.filter(s => s === 'live').length,
       simCount: vals.filter(s => s === 'sim').length,
       lastRefresh: this.lastRefresh, error: this.lastError,
+      provider: this.provider,
     }
+  }
+
+  // Set the live feed source. If live is active, re-hydrate immediately.
+  configureLive(provider: 'yahoo' | 'finnhub', apiKey: string) {
+    this.provider = provider
+    this.apiKey = apiKey.trim()
+    this.emitStatus()
+    if (this.mode === 'live') void this.refreshLive(true)
   }
 
   // Switch between the simulator and live Yahoo data.
@@ -181,9 +193,15 @@ export class MarketEngine {
     this.connecting = true
     this.emitStatus()
     try {
-      const { fetchLiveBatch, LIVE_SYMBOLS } = await import('./providers')
-      const range = full ? '1y' : '5d'
-      const results = await fetchLiveBatch(LIVE_SYMBOLS, range, '1d')
+      const providers = await import('./providers')
+      let results: Record<string, import('./providers').LiveQuote | null>
+      if (this.provider === 'finnhub') {
+        if (!this.apiKey) { this.lastError = 'Finnhub selected but no API key set (open the DATA tab). Showing simulated data.'; return }
+        results = await providers.fetchFinnhubBatch(providers.FINNHUB_SYMBOLS, this.apiKey)
+      } else {
+        const range = full ? '1y' : '5d'
+        results = await providers.fetchLiveBatch(providers.LIVE_SYMBOLS, range, '1d')
+      }
       let any = false
       for (const [sym, lq] of Object.entries(results)) {
         const q = this.quotes[sym]
@@ -202,7 +220,7 @@ export class MarketEngine {
         q.changePct = lq.prevClose ? (q.change / lq.prevClose) * 100 : 0
         const spread = lq.price * (q.cls === 'FX' ? 0.00005 : q.cls === 'Crypto' ? 0.0003 : 0.0004)
         q.bid = lq.price - spread; q.ask = lq.price + spread
-        if (full && lq.history.length) {
+        if (full && lq.history && lq.history.length) {
           q.history = lq.history
           q.intraday = lq.history.slice(-60).map(c => c.c)
           q.intraday.push(lq.price)

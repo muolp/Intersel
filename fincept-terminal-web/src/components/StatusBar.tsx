@@ -12,7 +12,7 @@ export function StatusBar({ view }: { view: string }) {
   return (
     <div className="statusbar">
       <span><span className="dot" style={{ background: dot, boxShadow: `0 0 6px ${dot}` }} />
-        {st.connecting ? 'CONNECTING' : live ? `LIVE · YAHOO (${st.liveCount} live / ${st.simCount} sim)` : 'SIMULATED FEED'}
+        {st.connecting ? 'CONNECTING' : live ? `LIVE · ${st.provider.toUpperCase()} (${st.liveCount} live / ${st.simCount} sim)` : 'SIMULATED FEED'}
       </span>
       <span className="faint">VIEW: {view.toUpperCase()}</span>
       <span>ADV <span className="up">{adv}</span> / DEC <span className="down">{dec}</span></span>

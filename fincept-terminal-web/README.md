@@ -61,6 +61,17 @@ proxies server-side (`vite.config.ts`). Therefore:
   degrades gracefully — per symbol — back to the simulator, and the status bar
   shows how many symbols are live vs simulated.
 
+Open the **DATA** tab (or type `DATA`) to choose a feed provider:
+
+- **Yahoo (no key)** — whole universe, via the dev proxy (dev/preview only).
+- **Finnhub (API key)** — paste a free [finnhub.io](https://finnhub.io/register)
+  token. Finnhub's quote API is **CORS-enabled**, so live prices work directly
+  from the browser on **any normal deployment** (and dev/preview) with no proxy.
+  Free tier covers US stocks & ETFs (real-time quotes layered on the chart);
+  other classes stay simulated. The key is stored only in your browser
+  (localStorage) and sent only to Finnhub. The one place live data can't run is
+  the sandboxed claude.ai Artifact, whose policy blocks all external requests.
+
 Every symbol falls back to simulated data individually if its live fetch fails,
 so the terminal never breaks. All trading is **paper money only — not investment
 advice.**

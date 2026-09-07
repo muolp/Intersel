@@ -36,8 +36,10 @@ export interface LiveQuote {
   volume: number
   yearHigh: number
   yearLow: number
-  history: Candle[]
+  history?: Candle[]   // omitted by quote-only providers (e.g. Finnhub free tier)
 }
+
+export type FeedProvider = 'yahoo' | 'finnhub'
 
 const BASE = '/api/yahoo'
 
@@ -109,4 +111,53 @@ export async function fetchLiveBatch(
 // Probe whether the live proxy is reachable in this deployment.
 export async function liveAvailable(): Promise<boolean> {
   try { const q = await fetchLive('AAPL', '5d', '1d'); return !!q } catch { return false }
+}
+
+// ---------------------------------------------------------------------------
+// Finnhub provider (optional API key). Finnhub's /quote endpoint is CORS-enabled
+// and works directly from the browser — no proxy needed — so it powers LIVE data
+// on any normal static deployment (and `npm run dev`/`preview`). It does NOT work
+// inside the sandboxed claude.ai Artifact, whose policy blocks all external fetch.
+//
+// Free tier note: /quote covers US stocks & ETFs (real-time-ish) and returns no
+// history, so live prices update on top of the existing chart. Indices, FX,
+// commodities and crypto stay on the simulator under Finnhub.
+const FINNHUB = 'https://finnhub.io/api/v1'
+
+// Symbols Finnhub free tier can quote (US equities + ETFs).
+export const FINNHUB_SYMBOLS = SYMBOLS
+  .filter(s => s.cls === 'Equity' || s.cls === 'ETF')
+  .map(s => s.symbol)
+
+export function parseFinnhubQuote(symbol: string, j: any): LiveQuote | null {
+  // { c: current, d: change, dp: pct, h, l, o, pc: prevClose, t: epoch }
+  if (!j || typeof j.c !== 'number' || j.c === 0) return null
+  const price = j.c
+  const prevClose = typeof j.pc === 'number' && j.pc > 0 ? j.pc : price
+  return {
+    symbol, price, prevClose,
+    open: j.o || price, dayHigh: j.h || price, dayLow: j.l || price,
+    volume: 0, yearHigh: j.h || price, yearLow: j.l || price,
+  }
+}
+
+export async function fetchFinnhub(symbol: string, apiKey: string): Promise<LiveQuote | null> {
+  const url = `${FINNHUB}/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(apiKey)}`
+  const j = await fetchJson(url)
+  return parseFinnhubQuote(symbol, j)
+}
+
+export async function fetchFinnhubBatch(
+  symbols: string[], apiKey: string, concurrency = 5,
+): Promise<Record<string, LiveQuote | null>> {
+  const out: Record<string, LiveQuote | null> = {}
+  let i = 0
+  async function worker() {
+    while (i < symbols.length) {
+      const s = symbols[i++]
+      try { out[s] = await fetchFinnhub(s, apiKey) } catch { out[s] = null }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, symbols.length) }, worker))
+  return out
 }

@@ -21,6 +21,7 @@ import { Portfolio } from './modules/Portfolio'
 import { Trade } from './modules/Trade'
 import { Chat } from './modules/Chat'
 import { AlgoTrader } from './modules/AlgoTrader'
+import { DataFeed } from './modules/DataFeed'
 
 export interface Ctx {
   store: ReturnType<typeof useStore>
@@ -35,6 +36,9 @@ export default function App() {
   const [symbol, setSymbol] = useState('AAPL')
 
   useEffect(() => { engine.start(1500); return () => engine.stop() }, [])
+
+  // Keep the engine's live-feed config in sync with saved settings.
+  useEffect(() => { engine.configureLive(store.feed.provider, store.feed.apiKey) }, [store.feed.provider, store.feed.apiKey])
 
   // Autonomous AI trading loop — runs whenever autopilot is enabled, even off-screen.
   const cycleRef = useRef<() => void>(() => {})
@@ -53,7 +57,7 @@ export default function App() {
     const parts = raw.toUpperCase().split(/\s+/)
     const cmd = parts[0]
     // data-mode commands
-    if (cmd === 'LIVE') { void engine.setMode('live'); return }
+    if (cmd === 'LIVE') { engine.configureLive(store.feed.provider, store.feed.apiKey); void engine.setMode('live'); return }
     if (cmd === 'SIM') { void engine.setMode('sim'); return }
     // direct symbol lookup
     if (SYMBOL_MAP[cmd]) { setSymbol(cmd); setView('security'); return }
@@ -62,7 +66,7 @@ export default function App() {
       GP: 'security', SEC: 'security', W: 'watchlist', WATCH: 'watchlist', SCR: 'screener', SCREEN: 'screener',
       N: 'news', NEWS: 'news', ECO: 'economics', ECON: 'economics', ANLY: 'analytics', ANALYTICS: 'analytics',
       PORT: 'portfolio', PORTFOLIO: 'portfolio', BUY: 'trade', SELL: 'trade', TRADE: 'trade',
-      ALGO: 'algo', AUTO: 'algo', BOT: 'algo', AI: 'chat', CHAT: 'chat', HELP: 'dashboard',
+      ALGO: 'algo', AUTO: 'algo', BOT: 'algo', AI: 'chat', CHAT: 'chat', DATA: 'data', FEED: 'data', CFG: 'data', HELP: 'dashboard',
     }
     if (map[cmd]) {
       if ((cmd === 'GP' || cmd === 'SEC' || cmd === 'BUY' || cmd === 'SELL' || cmd === 'TRADE') && parts[1] && SYMBOL_MAP[parts[1]]) setSymbol(parts[1])
@@ -87,6 +91,7 @@ export default function App() {
       case 'trade': return <Trade ctx={ctx} />
       case 'algo': return <AlgoTrader ctx={ctx} />
       case 'chat': return <Chat ctx={ctx} />
+      case 'data': return <DataFeed ctx={ctx} />
       default: return <Dashboard ctx={ctx} />
     }
   }
