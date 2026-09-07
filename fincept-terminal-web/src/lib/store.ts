@@ -17,7 +17,7 @@ export interface AlgoDecision { id: number; time: string; symbol: string; side: 
 
 export interface FeedSettings { provider: 'yahoo' | 'finnhub'; apiKey: string }
 
-const LS = 'fincept-terminal-state'
+const LS = 'fincept-terminal-state-v2'
 interface Persisted {
   watchlist: string[]; positions: Position[]; cash: number; trades: Trade[]
   algo: AlgoSettings; algoLog: AlgoDecision[]
@@ -25,19 +25,15 @@ interface Persisted {
 }
 
 const DEFAULT_ALGO: AlgoSettings = {
-  enabled: false, aggression: 'balanced', universe: 'watchlist',
+  // The AI trades from the start, on a clean book, so activity is visible.
+  enabled: true, aggression: 'balanced', universe: 'equities',
   riskPerTradePct: 8, maxPositionPct: 25, cashReservePct: 15,
-  maxTradesPerCycle: 3, intervalSec: 20,
+  maxTradesPerCycle: 3, intervalSec: 12,
 }
 
 const DEFAULT: Persisted = {
   watchlist: ['AAPL', 'NVDA', 'MSFT', 'TSLA', 'BTC', 'SPX', 'GC', 'EURUSD'],
-  positions: [
-    { symbol: 'AAPL', qty: 120, avg: 198.4 },
-    { symbol: 'MSFT', qty: 60, avg: 401.2 },
-    { symbol: 'NVDA', qty: 200, avg: 98.6 },
-    { symbol: 'BTC', qty: 1.5, avg: 58200 },
-  ],
+  positions: [],   // clean slate — the AI builds the book itself
   cash: 250000,
   trades: [],
   algo: DEFAULT_ALGO,

@@ -56,6 +56,20 @@ export function computeSignal(q: Quote): Signal {
   return { symbol: q.symbol, score, action, confidence: Math.abs(score), rsi: r, mom, trend, reason: bits.join(' · ') }
 }
 
+// A plain-language explanation of why a trade was taken.
+export function whyText(sig: Signal, side: 'BUY' | 'SELL'): string {
+  const trendTxt = sig.trend === 'up' ? '20-day avg above 50-day (uptrend)'
+    : sig.trend === 'down' ? '20-day avg below 50-day (downtrend)' : 'no clear trend'
+  const momTxt = `${sig.mom >= 0 ? '+' : ''}${sig.mom.toFixed(1)}% 10-day momentum`
+  const rsiTxt = sig.rsi < 30 ? `RSI ${sig.rsi.toFixed(0)} (oversold — bounce likely)`
+    : sig.rsi > 70 ? `RSI ${sig.rsi.toFixed(0)} (overbought — pullback risk)`
+    : `RSI ${sig.rsi.toFixed(0)} (neutral)`
+  const lead = side === 'BUY'
+    ? 'Bought: bullish setup —'
+    : 'Sold: bearish setup —'
+  return `${lead} ${trendTxt}, ${momTxt}, ${rsiTxt}. Signal ${sig.score >= 0 ? '+' : ''}${(sig.score * 100).toFixed(0)}/100.`
+}
+
 export const AGGRESSION: Record<AlgoSettings['aggression'], { buy: number; sell: number }> = {
   conservative: { buy: 0.45, sell: -0.35 },
   balanced: { buy: 0.30, sell: -0.25 },
@@ -101,7 +115,7 @@ export function runAlgoCycle(store: Store): AlgoDecision[] {
     const sellQty = sig.score < thr.sell - 0.2 ? pos.qty : Math.max(1, Math.floor(pos.qty * 0.5))
     if (sellQty <= 0) continue
     store.trade(sig.symbol, 'SELL', sellQty, q.bid, 'ai')
-    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'SELL', qty: sellQty, price: q.bid, score: sig.score, reason: `Exit — ${sig.reason}` })
+    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'SELL', qty: sellQty, price: q.bid, score: sig.score, reason: whyText(sig, 'SELL') })
   }
 
   // BUYS with risk budget
@@ -125,7 +139,7 @@ export function runAlgoCycle(store: Store): AlgoDecision[] {
     if (fracQty <= 0) continue
     if (fracQty * q.ask < 50) continue  // skip dust
     store.trade(sig.symbol, 'BUY', fracQty, q.ask, 'ai')
-    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'BUY', qty: fracQty, price: q.ask, score: sig.score, reason: `Enter — ${sig.reason}` })
+    decisions.push({ id: did++, time, symbol: sig.symbol, side: 'BUY', qty: fracQty, price: q.ask, score: sig.score, reason: whyText(sig, 'BUY') })
   }
 
   return decisions

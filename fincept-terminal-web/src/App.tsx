@@ -46,8 +46,9 @@ export default function App() {
   useEffect(() => {
     if (!store.algo.enabled) return
     const ms = Math.max(5, store.algo.intervalSec) * 1000
+    const kick = setTimeout(() => cycleRef.current(), 1200) // act shortly after enabling
     const id = setInterval(() => cycleRef.current(), ms)
-    return () => clearInterval(id)
+    return () => { clearTimeout(kick); clearInterval(id) }
   }, [store.algo.enabled, store.algo.intervalSec])
 
   const selectSymbol = useCallback((s: string) => { setSymbol(s); setView('security') }, [])

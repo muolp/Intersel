@@ -41,7 +41,7 @@ export interface LiveQuote {
 
 export type FeedProvider = 'yahoo' | 'finnhub'
 
-const BASE = '/api/yahoo'
+const BASES = ['/api/yahoo', '/api/yahoo2']
 
 // Extract a Yahoo chart JSON payload into our shape.
 export function parseYahooChart(symbol: string, json: any): LiveQuote | null {
@@ -87,9 +87,18 @@ async function fetchJson(url: string, timeoutMs = 9000): Promise<any> {
 export async function fetchLive(symbol: string, range = '1y', interval = '1d'): Promise<LiveQuote | null> {
   const yt = YAHOO_MAP[symbol]
   if (!yt) return null
-  const url = `${BASE}/v8/finance/chart/${encodeURIComponent(yt)}?range=${range}&interval=${interval}`
-  const json = await fetchJson(url)
-  return parseYahooChart(symbol, json)
+  let lastErr: unknown = null
+  // Try query1, then query2 as a fallback (Yahoo hosts intermittently 401/429).
+  for (const base of BASES) {
+    try {
+      const url = `${base}/v8/finance/chart/${encodeURIComponent(yt)}?range=${range}&interval=${interval}`
+      const json = await fetchJson(url)
+      const q = parseYahooChart(symbol, json)
+      if (q) return q
+    } catch (e) { lastErr = e }
+  }
+  if (lastErr) throw lastErr
+  return null
 }
 
 // Fetch many symbols with limited concurrency; never throws — failures resolve null.

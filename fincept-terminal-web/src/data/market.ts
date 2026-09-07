@@ -230,7 +230,12 @@ export class MarketEngine {
         }
       }
       this.lastRefresh = Date.now()
-      if (!any) this.lastError = 'No live data available (proxy/network blocked); showing simulated data.'
+      if (!any) {
+        const hosted = typeof location !== 'undefined' && !/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname)
+        this.lastError = hosted
+          ? 'Live data blocked on the hosted page (the sandbox forbids external requests). Run locally with `npm run dev`, or deploy to your own host and use Finnhub. Showing simulated data.'
+          : 'No live data returned (Yahoo may be rate-limiting). Retrying on the next poll; showing simulated data meanwhile.'
+      }
     } catch (e: any) {
       this.lastError = 'Live data unavailable: ' + (e?.message ?? 'network error') + ' — showing simulated data.'
     } finally {

@@ -80,7 +80,7 @@ export function AlgoTrader({ ctx }: { ctx: Ctx }) {
         </div>
       </Panel>
 
-      <Panel title="Signals" sub={`${signals.length} instruments · ranked`} flush style={{ gridRow: 'span 2' }}>
+      <Panel title="Signals" sub={`${signals.length} instruments · ranked`} flush style={{ maxHeight: 420, overflow: 'auto' }}>
         <table className="tbl">
           <thead><tr><th>Symbol</th><th>Last</th><th>Signal</th><th>Score</th><th>Trend</th><th>Mom</th><th>RSI</th><th style={{ textAlign: 'left' }}>Bias</th></tr></thead>
           <tbody>
@@ -103,30 +103,41 @@ export function AlgoTrader({ ctx }: { ctx: Ctx }) {
         </table>
       </Panel>
 
-      <Panel title="AI Activity" sub={`${aiTrades.length} AI fills`}
+      <Panel title="AI Activity" sub={`${aiTrades.length} AI fills · entry vs live price · why`} style={{ gridColumn: '1 / 3' }}
         right={<button className="btn" onClick={() => st.clearAlgoLog()}>Clear log</button>}>
-        <div className="stats mb" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+        <div className="stats mb" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
           <div className="stat"><div className="k">Book Value</div><div className="v">${fmtBig(totalVal)}</div></div>
           <div className="stat"><div className="k">Cash</div><div className="v">${fmtBig(st.cash)}</div></div>
+          <div className="stat"><div className="k">Open Positions</div><div className="v">{st.positions.length}</div></div>
           <div className="stat"><div className="k">AI Trades</div><div className="v">{aiTrades.length}</div></div>
         </div>
         {st.algoLog.length === 0
-          ? <div className="empty">No AI decisions yet. Start autopilot or run a cycle.</div>
+          ? <div className="empty">Warming up — the AI evaluates signals every {a.intervalSec}s and will trade shortly. Or hit “Run one cycle now”.</div>
           : (
             <table className="tbl">
-              <thead><tr><th style={{ textAlign: 'left' }}>Time</th><th>Symbol</th><th>Action</th><th>Qty</th><th>Price</th><th>Score</th><th style={{ textAlign: 'left' }}>Rationale</th></tr></thead>
+              <thead><tr>
+                <th style={{ textAlign: 'left' }}>Time</th><th>Symbol</th><th>Side</th><th>Qty</th>
+                <th>Entry</th><th>Now</th><th>Δ Since</th><th>Score</th><th style={{ textAlign: 'left' }}>Why the AI took it</th>
+              </tr></thead>
               <tbody>
-                {st.algoLog.map(d => (
-                  <tr key={d.id}>
-                    <td className="faint">{d.time}</td>
-                    <td className="sym">{d.symbol}</td>
-                    <td className={d.side === 'BUY' ? 'up' : 'down'}>{d.side}</td>
-                    <td className="muted">{fmtNum(d.qty, d.qty % 1 === 0 ? 0 : 4)}</td>
-                    <td>{fmtNum(d.price)}</td>
-                    <td className={signCls(d.score)}>{signStr(d.score * 100, 0)}</td>
-                    <td className="muted" style={{ whiteSpace: 'normal', fontSize: 11 }}>{d.reason}</td>
-                  </tr>
-                ))}
+                {st.algoLog.map(d => {
+                  const now = eng.get(d.symbol)?.price ?? d.price
+                  const chg = d.price ? (now - d.price) / d.price * 100 : 0
+                  const dir = d.side === 'BUY' ? 1 : -1  // favorable move direction
+                  return (
+                    <tr key={d.id}>
+                      <td className="faint">{d.time}</td>
+                      <td className="sym clickable" onClick={() => ctx.selectSymbol(d.symbol)}>{d.symbol}</td>
+                      <td className={d.side === 'BUY' ? 'up' : 'down'}>{d.side}</td>
+                      <td className="muted">{fmtNum(d.qty, d.qty % 1 === 0 ? 0 : 4)}</td>
+                      <td>{fmtNum(d.price)}</td>
+                      <td>{fmtNum(now)}</td>
+                      <td className={signCls(chg * dir)}>{signStr(chg, 2)}%</td>
+                      <td className={signCls(d.score)}>{signStr(d.score * 100, 0)}</td>
+                      <td className="muted" style={{ whiteSpace: 'normal', fontSize: 11, maxWidth: 460 }}>{d.reason}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
