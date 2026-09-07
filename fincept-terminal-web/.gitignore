@@ -8,3 +8,5 @@ npm-debug.log*
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js
+dist-single
+artifact.html
