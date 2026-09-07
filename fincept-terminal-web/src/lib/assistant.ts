@@ -10,13 +10,14 @@ export function respond(input: string, store: Store): string {
   const syms = SYMBOLS.map(s => s.symbol).filter(s => new RegExp(`\\b${s}\\b`).test(upper))
 
   if (/help|what can you|commands?/i.test(q)) {
-    return `I'm the Fincept research assistant (offline demo). Try:
+    return `I'm the Fincept AI assistant. I can research AND trade your paper account. Try:
+• "Buy 10 AAPL" / "Sell all TSLA" / "Close NVDA" — place paper orders
+• "Start AI trading" / "Stop AI trading" — toggle the auto-trader
+• "Rebalance my book" — run one AI trading cycle now
 • "Analyze NVDA" — snapshot, risk & signal
-• "Compare AAPL and MSFT"
-• "How is my portfolio doing?"
-• "What are today's top movers?"
-• "Risk of TSLA" — vol / Sharpe / drawdown
-• "Explain Sharpe ratio / VaR / DCF"`
+• "Compare AAPL and MSFT" · "How is my portfolio doing?"
+• "Explain Sharpe ratio / VaR / DCF"
+All orders are simulated (paper) — not investment advice.`
   }
 
   if (/portfolio|my (positions|holdings|book)|how am i|p&l|pnl/i.test(q)) {

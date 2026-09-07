@@ -10,6 +10,7 @@ export const NAV: NavItem[] = [
   { id: 'analytics', label: 'Analytics', icon: 'ƒ', group: 'Research', cmd: 'ANLY' },
   { id: 'portfolio', label: 'Portfolio', icon: '▣', group: 'Trading', cmd: 'PORT' },
   { id: 'trade', label: 'Order Ticket', icon: '⇅', group: 'Trading', cmd: 'BUY' },
+  { id: 'algo', label: 'AI Auto-Trader', icon: '⚙', group: 'Intelligence', cmd: 'ALGO' },
   { id: 'chat', label: 'AI Research', icon: '✦', group: 'Intelligence', cmd: 'AI' },
 ]
 export const GROUPS = ['Home', 'Markets', 'Research', 'Trading', 'Intelligence']

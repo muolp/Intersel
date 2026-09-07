@@ -73,7 +73,7 @@ export function Portfolio({ ctx }: { ctx: Ctx }) {
       <Panel title="Recent Fills" flush style={{ gridColumn: '1 / 3' }}>
         {st.trades.length === 0 ? <div className="empty">No trades yet.</div> : (
           <table className="tbl">
-            <thead><tr><th style={{ textAlign: 'left' }}>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+            <thead><tr><th style={{ textAlign: 'left' }}>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Value</th><th>By</th></tr></thead>
             <tbody>
               {st.trades.map(t => (
                 <tr key={t.id}>
@@ -83,6 +83,7 @@ export function Portfolio({ ctx }: { ctx: Ctx }) {
                   <td className="muted">{fmtNum(t.qty, t.qty % 1 === 0 ? 0 : 4)}</td>
                   <td>{fmtNum(t.price)}</td>
                   <td className="muted">${fmtBig(t.qty * t.price)}</td>
+                  <td><span className={'tag' + (t.by === 'ai' ? ' g' : '')}>{t.by === 'ai' ? 'AI' : 'YOU'}</span></td>
                 </tr>
               ))}
             </tbody>

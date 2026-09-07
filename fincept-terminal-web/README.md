@@ -28,13 +28,42 @@ runs fully offline with zero API keys.
 - **Analytics** — portfolio risk (annualized return, volatility, Sharpe, max
   drawdown, historical VaR) and a two-stage DCF valuation calculator.
 - **Portfolio + Order Ticket** — paper-trading engine with market/limit orders,
-  live P&L, equity curve and fills blotter (persisted).
-- **AI Research** — an offline, rule-based analyst that reasons over the terminal's
-  live data (analyze/compare tickers, review the book, explain metrics).
+  live P&L, equity curve and a fills blotter that tags each fill YOU vs AI (persisted).
+- **AI Auto-Trader (ALGO)** — an autonomous paper-trading agent. It scores every
+  instrument from SMA(20/50) trend, 10-day momentum and RSI(14), then trades your
+  paper book within your risk limits (risk-per-trade, max position, cash reserve,
+  max trades/cycle, cycle interval, aggression). Start/stop it, watch a live signals
+  table and a decision log with the rationale behind every fill. Runs even when
+  you're on another screen.
+- **AI Research** — a rule-based analyst that reasons over the terminal's data
+  **and can trade for you**: natural-language orders ("buy 10 AAPL", "sell all
+  TSLA", "close NVDA"), autopilot control ("start/stop AI trading"), and
+  "rebalance my book" to run a cycle on demand — plus analysis, comparison,
+  portfolio review and metric explainers.
 
-Everything is driven by a **deterministic mock market engine** (`src/data/market.ts`)
-that generates seeded 1-year OHLC histories and simulates live ticks — so charts,
-quotes, risk metrics and the AI answers all stay internally consistent.
+### Data: simulated by default, live optional
+
+By default the terminal runs on a **deterministic mock market engine**
+(`src/data/market.ts`) — seeded 1-year OHLC histories with simulated ticks, so
+charts, quotes, risk metrics and AI answers stay internally consistent with no
+network or API keys.
+
+Toggle **LIVE** (button in the command bar, or type `LIVE` / `SIM`) to pull real,
+free, **no-key** data from **Yahoo Finance** for the whole universe (equities,
+indices, crypto, FX, commodities, the 10Y yield). Browsers can't call Yahoo
+directly (no CORS), so requests go to `/api/yahoo/*`, which the Vite dev server
+proxies server-side (`vite.config.ts`). Therefore:
+
+- **Live data works when you run the app yourself** with `npm run dev` (or
+  `npm run preview`), where your machine reaches Yahoo.
+- The **hosted/static build and the sandboxed Artifact cannot fetch live data**
+  (their security policy blocks all external calls). There the LIVE toggle
+  degrades gracefully — per symbol — back to the simulator, and the status bar
+  shows how many symbols are live vs simulated.
+
+Every symbol falls back to simulated data individually if its live fetch fails,
+so the terminal never breaks. All trading is **paper money only — not investment
+advice.**
 
 ## Tech stack
 
@@ -67,11 +96,13 @@ fincept-terminal-web/
 │   ├── styles.css                # terminal theme (amber-on-black)
 │   ├── components/               # CommandBar, Sidebar, Ticker, StatusBar,
 │   │                             # Panel, canvas charts
-│   ├── data/                     # symbols, mock market engine, news, macro
-│   ├── lib/                      # hooks, store, quant math, AI assistant, nav
+│   ├── data/                     # symbols, market engine (sim+live), news,
+│   │                             # macro, providers.ts (Yahoo live feed)
+│   ├── lib/                      # hooks, store, quant math, AI assistant,
+│   │                             # trader.ts (signals + auto-trader), nav
 │   └── modules/                  # Dashboard, Markets, Security, Watchlist,
 │                                 # Screener, News, Economics, Analytics,
-│                                 # Portfolio, Trade, Chat
+│                                 # Portfolio, Trade, AlgoTrader, Chat
 ```
 
 ## Disclaimer

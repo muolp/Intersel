@@ -85,10 +85,27 @@ function baseVolume(def: SymbolDef): number {
   }
 }
 
+export type DataMode = 'sim' | 'live'
+export interface LiveStatus {
+  mode: DataMode
+  connecting: boolean
+  liveCount: number
+  simCount: number
+  lastRefresh: number | null
+  error: string | null
+}
+
 export class MarketEngine {
   quotes: Record<string, Quote> = {}
+  source: Record<string, 'sim' | 'live'> = {}
+  mode: DataMode = 'sim'
+  connecting = false
+  lastRefresh: number | null = null
+  lastError: string | null = null
   private listeners = new Set<() => void>()
+  private statusListeners = new Set<() => void>()
   private timer: number | null = null
+  private liveTimer: number | null = null
 
   constructor() {
     for (const def of SYMBOLS) {
@@ -114,6 +131,7 @@ export class MarketEngine {
         pe: peBySymbol[def.symbol] ?? 0,
         currency: def.currency, history: hist, intraday,
       }
+      this.source[def.symbol] = 'sim'
     }
   }
 
@@ -121,11 +139,104 @@ export class MarketEngine {
     if (this.timer != null) return
     this.timer = window.setInterval(() => this.tick(), ms)
   }
-  stop() { if (this.timer != null) { clearInterval(this.timer); this.timer = null } }
+  stop() {
+    if (this.timer != null) { clearInterval(this.timer); this.timer = null }
+    if (this.liveTimer != null) { clearInterval(this.liveTimer); this.liveTimer = null }
+  }
 
-  subscribe(fn: () => void) { this.listeners.add(fn); return () => this.listeners.delete(fn) }
+  subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn) } }
+  subscribeStatus(fn: () => void) { this.statusListeners.add(fn); return () => { this.statusListeners.delete(fn) } }
+  private emitStatus() { this.statusListeners.forEach(fn => fn()) }
+
+  status(): LiveStatus {
+    const vals = Object.values(this.source)
+    return {
+      mode: this.mode, connecting: this.connecting,
+      liveCount: vals.filter(s => s === 'live').length,
+      simCount: vals.filter(s => s === 'sim').length,
+      lastRefresh: this.lastRefresh, error: this.lastError,
+    }
+  }
+
+  // Switch between the simulator and live Yahoo data.
+  async setMode(mode: DataMode): Promise<void> {
+    if (mode === this.mode && !this.lastError) return
+    this.mode = mode
+    this.lastError = null
+    if (this.liveTimer != null) { clearInterval(this.liveTimer); this.liveTimer = null }
+    if (mode === 'live') {
+      await this.refreshLive(true)
+      // poll for fresh prices while live
+      this.liveTimer = window.setInterval(() => { void this.refreshLive(false) }, 30000)
+    } else {
+      // reset source labels; simulator resumes on the next tick
+      for (const s of Object.keys(this.source)) this.source[s] = 'sim'
+      this.emitStatus()
+    }
+  }
+
+  // Pull live quotes; on any failure a symbol keeps its current (sim) series.
+  async refreshLive(full: boolean): Promise<void> {
+    if (this.mode !== 'live') return
+    this.connecting = true
+    this.emitStatus()
+    try {
+      const { fetchLiveBatch, LIVE_SYMBOLS } = await import('./providers')
+      const range = full ? '1y' : '5d'
+      const results = await fetchLiveBatch(LIVE_SYMBOLS, range, '1d')
+      let any = false
+      for (const [sym, lq] of Object.entries(results)) {
+        const q = this.quotes[sym]
+        if (!q || !lq) { if (this.source[sym] !== 'live') this.source[sym] = 'sim'; continue }
+        any = true
+        this.source[sym] = 'live'
+        q.price = lq.price
+        q.prevClose = lq.prevClose
+        q.open = lq.open
+        q.dayHigh = lq.dayHigh
+        q.dayLow = lq.dayLow
+        q.volume = lq.volume
+        q.yearHigh = lq.yearHigh
+        q.yearLow = lq.yearLow
+        q.change = lq.price - lq.prevClose
+        q.changePct = lq.prevClose ? (q.change / lq.prevClose) * 100 : 0
+        const spread = lq.price * (q.cls === 'FX' ? 0.00005 : q.cls === 'Crypto' ? 0.0003 : 0.0004)
+        q.bid = lq.price - spread; q.ask = lq.price + spread
+        if (full && lq.history.length) {
+          q.history = lq.history
+          q.intraday = lq.history.slice(-60).map(c => c.c)
+          q.intraday.push(lq.price)
+        } else {
+          q.intraday.push(lq.price)
+          if (q.intraday.length > 240) q.intraday.shift()
+        }
+      }
+      this.lastRefresh = Date.now()
+      if (!any) this.lastError = 'No live data available (proxy/network blocked); showing simulated data.'
+    } catch (e: any) {
+      this.lastError = 'Live data unavailable: ' + (e?.message ?? 'network error') + ' — showing simulated data.'
+    } finally {
+      this.connecting = false
+      this.emitStatus()
+      this.listeners.forEach(fn => fn())
+    }
+  }
 
   private tick() {
+    if (this.mode === 'live') {
+      // In live mode, only jitter symbols still on the simulator (no live feed).
+      for (const def of SYMBOLS) {
+        if (this.source[def.symbol] === 'live') continue
+        const q = this.quotes[def.symbol]
+        const step = (Math.random() - 0.5) * 2 * def.vol * 0.12
+        const np = Math.max(0.0001, q.price * (1 + step))
+        q.price = np; q.change = np - q.prevClose
+        q.changePct = q.prevClose ? (q.change / q.prevClose) * 100 : 0
+        q.intraday.push(np); if (q.intraday.length > 240) q.intraday.shift()
+      }
+      this.listeners.forEach(fn => fn())
+      return
+    }
     for (const def of SYMBOLS) {
       const q = this.quotes[def.symbol]
       const step = (Math.random() - 0.5) * 2 * def.vol * 0.12

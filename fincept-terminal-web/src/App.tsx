@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CommandBar } from './components/CommandBar'
 import { Sidebar } from './components/Sidebar'
 import { Ticker } from './components/Ticker'
@@ -7,6 +7,7 @@ import { NAV } from './lib/nav'
 import { useStore } from './lib/store'
 import { engine } from './data/market'
 import { SYMBOL_MAP } from './data/symbols'
+import { runAlgoCycle } from './lib/trader'
 
 import { Dashboard } from './modules/Dashboard'
 import { Markets } from './modules/Markets'
@@ -19,6 +20,7 @@ import { Analytics } from './modules/Analytics'
 import { Portfolio } from './modules/Portfolio'
 import { Trade } from './modules/Trade'
 import { Chat } from './modules/Chat'
+import { AlgoTrader } from './modules/AlgoTrader'
 
 export interface Ctx {
   store: ReturnType<typeof useStore>
@@ -34,12 +36,25 @@ export default function App() {
 
   useEffect(() => { engine.start(1500); return () => engine.stop() }, [])
 
+  // Autonomous AI trading loop — runs whenever autopilot is enabled, even off-screen.
+  const cycleRef = useRef<() => void>(() => {})
+  cycleRef.current = () => { const d = runAlgoCycle(store); store.logAlgo(d) }
+  useEffect(() => {
+    if (!store.algo.enabled) return
+    const ms = Math.max(5, store.algo.intervalSec) * 1000
+    const id = setInterval(() => cycleRef.current(), ms)
+    return () => clearInterval(id)
+  }, [store.algo.enabled, store.algo.intervalSec])
+
   const selectSymbol = useCallback((s: string) => { setSymbol(s); setView('security') }, [])
   const go = useCallback((v: string) => setView(v), [])
 
   const onCommand = useCallback((raw: string) => {
     const parts = raw.toUpperCase().split(/\s+/)
     const cmd = parts[0]
+    // data-mode commands
+    if (cmd === 'LIVE') { void engine.setMode('live'); return }
+    if (cmd === 'SIM') { void engine.setMode('sim'); return }
     // direct symbol lookup
     if (SYMBOL_MAP[cmd]) { setSymbol(cmd); setView('security'); return }
     const map: Record<string, string> = {
@@ -47,7 +62,7 @@ export default function App() {
       GP: 'security', SEC: 'security', W: 'watchlist', WATCH: 'watchlist', SCR: 'screener', SCREEN: 'screener',
       N: 'news', NEWS: 'news', ECO: 'economics', ECON: 'economics', ANLY: 'analytics', ANALYTICS: 'analytics',
       PORT: 'portfolio', PORTFOLIO: 'portfolio', BUY: 'trade', SELL: 'trade', TRADE: 'trade',
-      AI: 'chat', CHAT: 'chat', HELP: 'dashboard',
+      ALGO: 'algo', AUTO: 'algo', BOT: 'algo', AI: 'chat', CHAT: 'chat', HELP: 'dashboard',
     }
     if (map[cmd]) {
       if ((cmd === 'GP' || cmd === 'SEC' || cmd === 'BUY' || cmd === 'SELL' || cmd === 'TRADE') && parts[1] && SYMBOL_MAP[parts[1]]) setSymbol(parts[1])
@@ -70,6 +85,7 @@ export default function App() {
       case 'analytics': return <Analytics ctx={ctx} />
       case 'portfolio': return <Portfolio ctx={ctx} />
       case 'trade': return <Trade ctx={ctx} />
+      case 'algo': return <AlgoTrader ctx={ctx} />
       case 'chat': return <Chat ctx={ctx} />
       default: return <Dashboard ctx={ctx} />
     }
